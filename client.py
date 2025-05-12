@@ -1,8 +1,10 @@
 import argparse
 import os
 import magic
+import json
 from typing import Optional
-from common_utils import ProcessedData, calculate_sha256, calculate_entropy
+from utils import ProcessedData, calculate_sha256, calculate_entropy, apply_pkcs7_padding
+from huffman import HuffmanCodec
 
 def process_file(filepath: str) -> Optional[ProcessedData]:
     """
@@ -23,12 +25,12 @@ def process_file(filepath: str) -> Optional[ProcessedData]:
         print(f"An unexpected error occurred while reading the file: {e}")
         return None
 
-    client_data_obj = ProcessedData(original_image_path=filepath)
+    processed_data = ProcessedData(original_image_path=filepath)
 
     try:
         mime = magic.Magic(mime=True)
-        client_data_obj.mime_type = mime.from_buffer(file_bytes)
-        print(f"Detected MIME type: {client_data_obj.mime_type}")
+        processed_data.mime_type = mime.from_buffer(file_bytes)
+        print(f"Detected MIME type: {processed_data.mime_type}")
     except magic.MagicException as e:
         print(f"Error: MIME type detection failed. Is libmagic installed correctly? Error: {e}")
         return None
@@ -36,34 +38,50 @@ def process_file(filepath: str) -> Optional[ProcessedData]:
         print(f"An unexpected error occurred during MIME type detection: {e}")
         return None
 
-    if client_data_obj.mime_type and client_data_obj.mime_type.startswith('image/'):
-        client_data_obj.is_image = True
+    if processed_data.mime_type and processed_data.mime_type.startswith('image/'):
+        processed_data.is_image = True
         print("File is identified as an image.")
 
-        client_data_obj.sha256 = calculate_sha256(file_bytes)
-        client_data_obj.entropy = calculate_entropy(file_bytes)
+        processed_data.sha256 = calculate_sha256(file_bytes)
+        processed_data.entropy = calculate_entropy(file_bytes)
+        
+        codec = HuffmanCodec(file_bytes)
+        bit_string, freq_map = codec.compress()
+        processed_data.encoded_message = bit_string
+        processed_data.frequency_map = freq_map
+        
+        padded_bit_string = apply_pkcs7_padding(bit_string)
+        processed_data.encoded_message = padded_bit_string
     else:
-        client_data_obj.is_image = False
+        processed_data.is_image = False
         print("Stopping processing as file is not an image.")
         return None
 
-    return client_data_obj
+    return processed_data
+
+def build_payload(processed_data: ProcessedData, errors: int = 0) -> str:
+    payload = {
+        "encoded_message": processed_data.encoded_message,
+        "compression_algorithm": processed_data.compression_algorithm,
+        "errors": errors,
+        "SHA256": processed_data.sha256,
+        "entropy": processed_data.entropy
+    }
+    return json.dumps(payload)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("filepath", help="Path to the file to process.")
+    parser.add_argument("--errors", type=int, default=0, help="Error injection rate percentage.")
 
     args = parser.parse_args()
 
     processed_info = process_file(args.filepath)
 
     if processed_info:
-        print("\n--- Processing Summary ---")
-        print(f"File Path: {processed_info.original_image_path}")
-        print(f"MIME Type: {processed_info.mime_type}")
-        print(f"File is Image: {processed_info.is_image}")
-        if processed_info.is_image:
-            print(f"SHA256: {processed_info.sha256}")
-            print(f"Entropy: {processed_info.entropy}")
+        payload = build_payload(processed_info, errors=args.errors)
+        print("\n--- JSON Payload ---")
+        print(payload)
     else:
-        print("\nFile processing failed or file was not an image.") 
+        print("\nProcessing Failed.")
+        exit(1)
