@@ -1,6 +1,8 @@
 import hashlib
 import math
 import collections
+import random
+import base64
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 
@@ -23,7 +25,9 @@ class ServerResponse:
     message: str
 
 def calculate_sha256(data: bytes) -> str:
-    """Calculates the SHA256 hash of byte data and returns it as a hex string."""
+    """
+    Calculates the SHA256 hash of byte data and returns it as a hex string.
+    """
     sha256_hash = hashlib.sha256()
     sha256_hash.update(data)
     return sha256_hash.hexdigest()
@@ -70,3 +74,25 @@ def apply_pkcs7_padding(bit_string: str, block_size: int = 128) -> str:
     # Ensure leading zeros are kept
     total_bits = len(padded) * 8
     return padded_bit_string.zfill(total_bits)
+
+def inject_errors(bit_string: str, error_rate: int) -> tuple[str, int]:
+    """
+    Injects random bit flips into the bit_string at the specified error_rate percentage.
+    Returns the new bit string and the number of bits flipped.
+    """
+    total_bits = len(bit_string)
+    num_errors = (total_bits * error_rate) // 100
+    bit_list = list(bit_string)
+    flipped_positions = random.sample(range(total_bits), num_errors)
+    for pos in flipped_positions:
+        bit_list[pos] = '1' if bit_list[pos] == '0' else '0'
+    return ''.join(bit_list), num_errors
+
+
+def to_base64(bit_string: str) -> str:
+    """
+    Encodes a bit string into base64.
+    """
+    byte_len = (len(bit_string) + 7) // 8
+    data_bytes = int(bit_string, 2).to_bytes(byte_len, byteorder='big')
+    return base64.b64encode(data_bytes).decode('ascii')

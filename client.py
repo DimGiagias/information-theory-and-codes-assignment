@@ -3,11 +3,11 @@ import os
 import magic
 import json
 from typing import Optional
-from utils import ProcessedData, calculate_sha256, calculate_entropy, apply_pkcs7_padding
+from utils import ProcessedData, calculate_sha256, calculate_entropy, apply_pkcs7_padding, to_base64, inject_errors
 from huffman import HuffmanCodec
 from linear import linear_encode
 
-def process_file(filepath: str) -> Optional[ProcessedData]:
+def process_file(filepath: str, error_rate: int) -> Optional[ProcessedData]:
     """
     Reads a file, checks if it's an image, and calculates its SHA256 and entropy.
     """
@@ -65,6 +65,13 @@ def process_file(filepath: str) -> Optional[ProcessedData]:
         processed_data.encoded_message = encoded_linear
         processed_data.encoding_parameters = params
         print(f"Linear encoded length: {len(encoded_linear)} bits, parameters: {params}")
+        
+        # --- Error injection ---
+        errored, num_errors = inject_errors(encoded_linear, error_rate)
+        processed_data.encoding_parameters = params
+        processed_data.encoded_message = to_base64(errored)
+        processed_data.encoding_algorithm = 'linear'
+        print(f"Injected {num_errors} errors ({error_rate}% rate)")
 
     else:
         processed_data.is_image = False
@@ -77,6 +84,8 @@ def build_payload(processed_data: ProcessedData, errors: int = 0) -> str:
     payload = {
         "encoded_message": processed_data.encoded_message,
         "compression_algorithm": processed_data.compression_algorithm,
+        "encoding": processed_data.encoding_algorithm,
+        "parameters": processed_data.encoding_parameters,
         "errors": errors,
         "SHA256": processed_data.sha256,
         "entropy": processed_data.entropy
@@ -90,7 +99,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    processed_info = process_file(args.filepath)
+    processed_info = process_file(args.filepath, error_rate=args.errors)
 
     if processed_info:
         payload = build_payload(processed_info, errors=args.errors)
