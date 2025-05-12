@@ -2,7 +2,7 @@ import hashlib
 import math
 import collections
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 @dataclass
 class ProcessedData:
@@ -11,7 +11,9 @@ class ProcessedData:
     is_image: bool = False
     encoded_message: Optional[str] = None
     compression_algorithm: Optional[str] = "huffman"
+    encoding_algorithm: Optional[str] = "linear"
     frequency_map: Dict[int, int] = field(default_factory=dict)
+    encoding_parameters: Dict[str, Any] = field(default_factory=dict)
     sha256: Optional[str] = None
     entropy: Optional[float] = None
 
