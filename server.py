@@ -4,7 +4,7 @@ from utils import (
     calculate_sha256, calculate_entropy,
     bytes_to_bit_string,
     pkcs7_unpad_bit_string,
-    from_base64
+    from_base64,to_base64
 )
 from huffman import HuffmanCodec
 from linear import LinearCodec
@@ -131,9 +131,12 @@ def process_request():
         reconstructed_entropy = calculate_entropy(final_reconstructed_image_data)
         sha256_match = (reconstructed_sha256 == original_image_sha256)
         error_difference = errors_introduced_by_client - total_errors_corrected
+        
+        b64_final_reconstructed_image_data = to_base64(final_reconstructed_image_data)
 
         response_payload = {
             "status": "success",
+            "b64_decoded_image (first and last 80 digits)": b64_final_reconstructed_image_data[:80] + "..." + b64_final_reconstructed_image_data[-80:],
             "server_calculated_sha256": reconstructed_sha256,
             "sha256_match": sha256_match,
             "errors_corrected": total_errors_corrected,
