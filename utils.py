@@ -58,10 +58,10 @@ def inject_bit_errors(bit_str: str, error_percentage: float) -> tuple[str, int]:
     return "".join(bit_list), num_errors
 
 def to_base64(data_bytes: bytes) -> str:
-    return base64.b64encode(data_bytes).decode('ascii')
+    return base64.b64encode(data_bytes).decode('utf-8')
 
 def from_base64(b64_string: str) -> bytes:
-    return base64.b64decode(b64_string.encode('ascii'))
+    return base64.b64decode(b64_string.encode('utf-8'))
 
 def bytes_to_bit_string(byte_data: bytes) -> str:
     return "".join(format(byte, '08b') for byte in byte_data)
