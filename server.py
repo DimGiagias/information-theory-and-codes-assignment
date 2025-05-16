@@ -136,7 +136,7 @@ def process_request():
 
         response_payload = {
             "status": "success",
-            "b64_decoded_image (first and last 80 digits)": b64_final_reconstructed_image_data[:80] + "..." + b64_final_reconstructed_image_data[-80:],
+            "decoded_image": b64_final_reconstructed_image_data,
             "server_calculated_sha256": reconstructed_sha256,
             "sha256_match": sha256_match,
             "errors_corrected": total_errors_corrected,
@@ -149,7 +149,6 @@ def process_request():
     except Exception as e:
         print(f"--- Server: UNEXPECTED ERROR: {e} ---")
         return jsonify({"status": "error", "message": f"An unexpected server error occurred: {e}"}), 500
-
 
 if __name__ == '__main__':
     print("Starting server...")

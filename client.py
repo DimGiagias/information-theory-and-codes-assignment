@@ -1,7 +1,9 @@
 import argparse
 import os
 import json
+import io
 import requests
+from PIL import Image
 from typing import Dict, Any
 from huffman import HuffmanCodec
 from linear import LinearCodec
@@ -11,7 +13,7 @@ from utils import (
     bit_string_to_bytes,
     pkcs7_pad_bit_string,
     inject_bit_errors,
-    to_base64
+    to_base64,from_base64
 )
 
 N_HAMMING = 128
@@ -100,7 +102,47 @@ def process_and_send(filepath: str, error_rate: float, server_url: str):
         response = requests.post(server_url, json=payload, timeout=30)
         response.raise_for_status()
         print("\n--- Server Response ---")
-        print(json.dumps(response.json(), indent=2))
+        response_data = response.json()
+        
+        display_data = dict(response_data)
+        display_data["decoded_image"] = display_data["decoded_image"][:60] + "..." + display_data["decoded_image"][-60:]
+        
+        # Display response
+        print(json.dumps(display_data, indent=2))
+        
+        if response_data.get("status") == "success":
+            image_representation = response_data.get("decoded_image")
+
+            if isinstance(image_representation, str):
+                if not image_representation:
+                    print("Received empty Base64 string from the server.")
+            else:
+                print("No image data received from server.")
+
+            # Attempt to display decoded image
+            if image_representation:
+                image_bytes_from_server = from_base64(image_representation)
+                if image_bytes_from_server:
+                    try:
+                        reconstructed_image = Image.open(io.BytesIO(image_bytes_from_server))
+                        original_input_image_for_format = Image.open(filepath)
+                        original_format = original_input_image_for_format.format
+
+                        decoded_filename = f"decoded_client_{os.path.basename(filepath)}"
+                        save_format = original_format if original_format and original_format.upper() in ["JPEG", "JPG", "PNG", "GIF", "BMP", "TIFF"] else "PNG"
+                        if not decoded_filename.lower().endswith(f".{save_format.lower()}"):
+                            base, _ = os.path.splitext(decoded_filename)
+                            decoded_filename = f"{base}.{save_format.lower()}"
+                        
+                        reconstructed_image.save(decoded_filename, format=save_format)
+                        print(f"Reconstructed image saved as: {decoded_filename} (Format: {save_format})")
+
+                        original_input_image_for_format.show(title="Original Input Image")
+                        reconstructed_image.show(title=f"Reconstructed Image")
+                    except IOError as e:
+                        print(f"Client Info: Failed to recognize image format from server data. The received data is likely corrupted and can't form a valid image file.")
+                    except Exception as e:
+                        print(f"Client Error handling reconstructed image: {e}")
     except requests.exceptions.RequestException as e:
         print(f"Error sending request to server: {e}")
     except json.JSONDecodeError:
